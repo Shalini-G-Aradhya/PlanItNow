@@ -1,20 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { API_BASE } from '../config';
 
 const ContextForm = () => {
     const navigate = useNavigate();
     const location = useLocation(); // Add hook
-    const [tasks, setTasks] = useState([]);
+    const [tasks, setTasks] = useState(location.state?.existingTasks || []);
     const [currentTask, setCurrentTask] = useState('');
     const [deadline, setDeadline] = useState('');
     const [constraints, setConstraints] = useState('');
 
     useEffect(() => {
-        if (location.state?.existingTasks) {
-            setTasks(location.state.existingTasks);
-        }
-        // If we had deadline/constraints passed back, sets them here too
-    }, [location.state]);
+    }, []);
 
     const addTask = (e) => {
         e.preventDefault();
@@ -29,10 +26,12 @@ const ContextForm = () => {
 
     const handleSubmit = async () => {
         try {
-            const response = await fetch('http://localhost:8000/generate-plan', {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE}/generate-plan`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     deadline,
@@ -43,7 +42,7 @@ const ContextForm = () => {
 
             if (response.ok) {
                 const data = await response.json();
-                navigate('/plan', { state: { plan: data.plan } });
+                navigate('/plan', { state: { plan: data.plan, planId: data.plan_id } });
             } else {
                 console.error('Failed to generate plan');
             }
@@ -58,6 +57,21 @@ const ContextForm = () => {
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-orange-500"></div>
 
             <div className="w-full max-w-2xl z-10">
+                <div className="flex justify-end mb-4">
+                    <button
+                        onClick={() => {
+                            const token = localStorage.getItem('token');
+                            if (token) {
+                                fetch('http://localhost:8000/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+                            }
+                            localStorage.removeItem('token');
+                            navigate('/login');
+                        }}
+                        className="text-slate-400 hover:text-white transition-colors"
+                    >
+                        Logout
+                    </button>
+                </div>
                 <h2 className="text-3xl font-bold text-white mb-8 text-center">What's the Panic?</h2>
 
                 <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-8 shadow-2xl">

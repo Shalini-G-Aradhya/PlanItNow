@@ -1,34 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { API_BASE } from '../config';
 
 const PlanView = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const [plan, setPlan] = useState([]);
+    const [plan, setPlan] = useState(location.state?.plan || []);
     const [history, setHistory] = useState([]);
+    const planId = location.state?.planId || null;
 
     useEffect(() => {
-        if (location.state?.plan) {
-            setPlan(location.state.plan);
+        if (planId) {
+            const token = localStorage.getItem('token');
+            fetch(`${API_BASE}/plans/${planId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            }).then(async (res) => {
+                if (!res.ok) return;
+                const data = await res.json();
+                const mapped = data.plan.items.map((it) => ({ id: it.id, time: it.time, task: it.text, status: it.status, locked: !!it.locked }));
+                setPlan(mapped);
+            });
         }
-    }, [location.state]);
+    }, [planId]);
 
     const addToHistory = () => {
         setHistory(prev => [...prev, plan]);
     };
 
-    const toggleTask = (id) => {
+    const toggleTask = async (id) => {
         addToHistory();
-        setPlan(plan.map(t =>
-            t.id === id ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' } : t
-        ));
+        const item = plan.find(t => t.id === id);
+        const nextStatus = item && item.status === 'completed' ? 'pending' : 'completed';
+        setPlan(plan.map(t => t.id === id ? { ...t, status: nextStatus } : t));
+        if (planId) {
+            const token = localStorage.getItem('token');
+            await fetch(`${API_BASE}/plans/${planId}/items/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ status: nextStatus })
+            });
+        }
     };
 
-    const toggleLock = (id) => {
+    const toggleLock = async (id) => {
         addToHistory();
-        setPlan(plan.map(t =>
-            t.id === id ? { ...t, locked: !t.locked } : t
-        ));
+        const item = plan.find(t => t.id === id);
+        const nextLock = item ? !item.locked : false;
+        setPlan(plan.map(t => t.id === id ? { ...t, locked: nextLock } : t));
+        if (planId) {
+            const token = localStorage.getItem('token');
+            await fetch(`${API_BASE}/plans/${planId}/items/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ locked: nextLock })
+            });
+        }
     };
 
     const handleUndo = () => {
@@ -71,16 +97,23 @@ const PlanView = () => {
                             Back to Edit
                         </button>
                         <button
-                            onClick={() => navigate('/')}
+                            onClick={() => {
+                                const token = localStorage.getItem('token');
+                                if (token) {
+                                    fetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+                                }
+                                localStorage.removeItem('token');
+                                navigate('/login');
+                            }}
                             className="text-slate-400 hover:text-white transition-colors"
                         >
-                            Exit Session
+                            Logout
                         </button>
                     </div>
                 </header>
 
                 <div className="space-y-4">
-                    {plan.map((item, index) => (
+                    {plan.map((item) => (
                         <div
                             key={item.id}
                             className={`group flex items-center p-4 rounded-xl border transition-all duration-300 ${item.status === 'completed'

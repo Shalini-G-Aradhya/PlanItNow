@@ -7,6 +7,14 @@ import os
 import secrets
 import hashlib
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from openai import OpenAI
+import json
+
+load_dotenv()
+
+# client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY")) # Moved inside function to prevent startup crash
+
 
 app = FastAPI()
 
